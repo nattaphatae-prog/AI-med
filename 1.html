@@ -1,0 +1,772 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI Medical Assistant</title>
+    <!-- โหลด Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- โหลด Font Inter -->
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
+    <!-- โหลด Lucide Icons -->
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <style>
+        /* ตั้งค่าฟอนต์หลักและธีมสี */
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #f7f7f7; /* สีพื้นหลังสบายตา */
+        }
+        /* กำหนดสีหลักและสีรอง */
+        :root {
+            --color-primary: #4b5563; /* Gray-600 */
+            --color-secondary: #ffffff; /* White */
+            --color-accent: #10b981; /* Emerald-500 */
+            --color-light: #e5e7eb; /* Gray-200 */
+        }
+        .sidebar {
+            background-color: var(--color-primary);
+            color: var(--color-secondary);
+        }
+        .main-content {
+            background-color: var(--color-light);
+        }
+        .nav-item {
+            cursor: pointer;
+            transition: all 0.2s;
+            display: flex;
+            align-items: center;
+            padding: 0.75rem 1rem;
+            border-radius: 0.5rem;
+            margin-bottom: 0.5rem;
+        }
+        .nav-item:hover {
+            background-color: rgba(255, 255, 255, 0.1);
+        }
+        .nav-item.active {
+            background-color: var(--color-accent);
+            color: #1f2937; /* Dark text for active state */
+            font-weight: 600;
+        }
+        .card {
+            background-color: var(--color-secondary);
+            border: 1px solid var(--color-light);
+            transition: transform 0.3s;
+        }
+        .card:hover {
+            transform: translateY(-3px);
+            box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
+        }
+        .chat-message.user {
+            background-color: var(--color-accent);
+            color: white;
+            /* ลบ align-self ออก เพราะจะใช้ flexbox justify แทน */
+        }
+        .chat-message.ai {
+            background-color: var(--color-light);
+            color: #1f2937;
+            /* ลบ align-self ออก เพราะจะใช้ flexbox justify แทน */
+        }
+        .loading-spinner {
+            border-top-color: var(--color-accent);
+            border-right-color: transparent;
+            border-bottom-color: transparent;
+            border-left-color: var(--color-accent);
+            animation: spin 1s linear infinite;
+        }
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+        /* ปรับสไตล์สำหรับมือถือ */
+        @media (max-width: 768px) {
+            .sidebar {
+                position: fixed;
+                z-index: 20;
+                width: 100%;
+                height: auto;
+                bottom: 0;
+                flex-direction: row;
+                justify-content: space-around;
+                border-top: 1px solid #1f2937;
+            }
+            .nav-item {
+                margin: 0;
+                padding: 0.5rem;
+                flex-direction: column;
+                text-align: center;
+            }
+            .nav-item span {
+                font-size: 0.75rem;
+            }
+            .main-content {
+                margin-left: 0;
+                padding-bottom: 5rem; /* เผื่อพื้นที่ Sidebar ด้านล่าง */
+            }
+            .desktop-logo {
+                display: none;
+            }
+        }
+    </style>
+</head>
+<body class="min-h-screen flex flex-col md:flex-row">
+
+    <!-- ----------------------------------------------------- -->
+    <!-- Sidebar / Navigation Bar -->
+    <!-- ----------------------------------------------------- -->
+    <div id="sidebar" class="sidebar md:w-64 p-4 shadow-xl flex flex-col justify-start md:min-h-screen z-10">
+        <!-- Logo/Title for Desktop -->
+        <div class="desktop-logo hidden md:block mb-10 text-xl font-bold border-b border-gray-500 pb-4">
+            <i data-lucide="stethoscope" class="inline-block mr-2 w-6 h-6 text-yellow-300"></i>
+            AI Health
+        </div>
+
+        <!-- Navigation Items -->
+        <div class="flex md:flex-col flex-row w-full md:grow">
+            <div id="nav-dashboard" class="nav-item active" data-target="dashboard-content">
+                <i data-lucide="layout-dashboard" class="w-5 h-5 md:mr-3"></i>
+                <span class="md:block">Dashboard</span>
+            </div>
+            <div id="nav-image-analysis" class="nav-item" data-target="image-analysis-content">
+                <i data-lucide="scan" class="w-5 h-5 md:mr-3"></i>
+                <span class="md:block">Image Analysis</span>
+            </div>
+            <div id="nav-chatbot" class="nav-item" data-target="chatbot-content">
+                <i data-lucide="message-square" class="w-5 h-5 md:mr-3"></i>
+                <span class="md:block">AI Chat</span>
+            </div>
+            <div id="nav-patient-search" class="nav-item" data-target="patient-search-content">
+                <i data-lucide="users" class="w-5 h-5 md:mr-3"></i>
+                <span class="md:block">Patient Search</span>
+            </div>
+        </div>
+    </div>
+
+    <!-- ----------------------------------------------------- -->
+    <!-- Main Content Area -->
+    <!-- ----------------------------------------------------- -->
+    <div id="main-content" class="main-content flex-1 p-4 md:p-8 overflow-y-auto">
+
+        <!-- Dashboard Content -->
+        <div id="dashboard-content" class="tab-content">
+            <h1 class="text-3xl font-bold text-gray-800 mb-6 flex items-center">
+                <i data-lucide="layout-dashboard" class="w-8 h-8 mr-2 text-gray-600"></i>
+                Dashboard
+            </h1>
+
+            <!-- User Info Card (Feature 7) -->
+            <div class="bg-white p-6 rounded-xl shadow-lg mb-8 border border-gray-200">
+                <h2 class="text-xl font-semibold text-gray-700 mb-4 flex items-center">
+                    <i data-lucide="user" class="w-6 h-6 mr-2 text-indigo-500"></i>
+                    ข้อมูลผู้ใช้งานระบบ (จำลอง)
+                </h2>
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-4 text-gray-600">
+                    <p><strong>ชื่อ:</strong> ดร. สมชาย ใจดี</p>
+                    <p><strong>แผนก:</strong> อายุรกรรมทั่วไป</p>
+                    <p><strong>รหัสผู้ใช้:</strong> AI-MED-001</p>
+                    <p><strong>สถานะ:</strong> แพทย์ผู้เชี่ยวชาญ AI</p>
+                </div>
+            </div>
+
+            <h2 class="text-2xl font-semibold text-gray-700 mb-6">ภาพรวมสถิติผู้ป่วย</h2>
+            <div id="stats-container" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+                <!-- Stat Cards will be injected here -->
+                <div class="card p-5 rounded-xl shadow-md flex flex-col justify-between h-40">
+                    <p class="text-sm font-medium text-gray-500">ผู้ป่วยทั้งหมด</p>
+                    <div class="text-4xl font-extrabold text-gray-800" id="stat-total-patients">...</div>
+                    <i data-lucide="users" class="w-8 h-8 text-gray-400 self-end"></i>
+                </div>
+                <div class="card p-5 rounded-xl shadow-md flex flex-col justify-between h-40">
+                    <p class="text-sm font-medium text-gray-500">อายุเฉลี่ย</p>
+                    <div class="text-4xl font-extrabold text-gray-800" id="stat-avg-age">...</div>
+                    <i data-lucide="gauge" class="w-8 h-8 text-gray-400 self-end"></i>
+                </div>
+                <div class="card p-5 rounded-xl shadow-md flex flex-col justify-between h-40">
+                    <p class="text-sm font-medium text-gray-500">เพศชาย</p>
+                    <div class="text-4xl font-extrabold text-gray-800" id="stat-male-count">...</div>
+                    <i data-lucide="gantt-chart-square" class="w-8 h-8 text-gray-400 self-end"></i>
+                </div>
+                <div class="card p-5 rounded-xl shadow-md flex flex-col justify-between h-40">
+                    <p class="text-sm font-medium text-gray-500">เงื่อนไขสุขภาพเด่น</p>
+                    <div class="text-4xl font-extrabold text-gray-800 truncate" id="stat-top-condition">...</div>
+                    <i data-lucide="activity" class="w-8 h-8 text-gray-400 self-end"></i>
+                </div>
+            </div>
+
+            <div class="mt-8 bg-white p-6 rounded-xl shadow-lg border border-gray-200">
+                <h3 class="text-xl font-semibold text-gray-700 mb-4">สถานะการเชื่อมต่อ API</h3>
+                <p id="api-status" class="text-lg font-medium text-yellow-600">กำลังตรวจสอบ...</p>
+            </div>
+        </div>
+
+        <!-- Image Analysis Content -->
+        <div id="image-analysis-content" class="tab-content hidden">
+            <h1 class="text-3xl font-bold text-gray-800 mb-6 flex items-center">
+                <i data-lucide="scan" class="w-8 h-8 mr-2 text-gray-600"></i>
+                Image Analysis
+            </h1>
+            <div class="bg-white p-6 rounded-xl shadow-lg border border-gray-200">
+                <h2 class="text-xl font-semibold text-gray-700 mb-4">อัปโหลดภาพเพื่อวิเคราะห์</h2>
+                <form id="image-analysis-form" class="space-y-4">
+                    <div>
+                        <label for="image-type" class="block text-sm font-medium text-gray-700">ประเภทภาพ</label>
+                        <select id="image-type" name="image_type" required class="mt-1 block w-full p-2 border border-gray-300 rounded-md shadow-sm focus:ring-emerald-500 focus:border-emerald-500">
+                            <option value="xray">X-ray (จำลองการจำแนกโรค)</option>
+                            <option value="blood">Blood Smear (จำลองการนับเซลล์)</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label for="image-file" class="block text-sm font-medium text-gray-700">ไฟล์รูปภาพ</label>
+                        <input type="file" id="image-file" name="file" accept="image/*" required class="mt-1 block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-emerald-50 file:text-emerald-700 hover:file:bg-emerald-100">
+                    </div>
+                    <button type="submit" class="w-full py-2 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-emerald-600 hover:bg-emerald-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-emerald-500 flex items-center justify-center" id="analyze-button">
+                        <i data-lucide="send" class="w-5 h-5 mr-2"></i>
+                        วิเคราะห์ภาพ
+                    </button>
+                    <div id="analysis-loading" class="hidden text-center text-emerald-600 font-medium mt-2">
+                        <div class="loading-spinner w-6 h-6 border-4 rounded-full mx-auto"></div>
+                        กำลังวิเคราะห์... โปรดรอสักครู่
+                    </div>
+                </form>
+
+                <div id="analysis-result" class="mt-8 border-t border-gray-200 pt-6 hidden">
+                    <h3 class="text-xl font-semibold text-gray-700 mb-4">ผลการวิเคราะห์</h3>
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                        <!-- Image Display -->
+                        <div>
+                            <p class="text-sm font-medium text-gray-500 mb-2">รูปภาพที่อัปโหลด:</p>
+                            <img id="uploaded-image-preview" src="" alt="Uploaded Medical Image" class="w-full h-auto rounded-lg shadow-md border border-gray-300">
+                        </div>
+                        <!-- Results -->
+                        <div id="result-details" class="space-y-4">
+                            <!-- Details will be injected here -->
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Chatbot Content -->
+        <div id="chatbot-content" class="tab-content hidden">
+            <h1 class="text-3xl font-bold text-gray-800 mb-6 flex items-center">
+                <i data-lucide="message-square" class="w-8 h-8 mr-2 text-gray-600"></i>
+                AI Medical Chat
+            </h1>
+
+            <div class="bg-white rounded-xl shadow-lg flex flex-col h-[70vh] border border-gray-200">
+                <!-- Chat Window -->
+                <div id="chat-window" class="flex-1 p-4 overflow-y-auto space-y-4">
+                    <!-- ข้อความเริ่มต้น AI ต้องมี div ด้านนอกสำหรับจัดตำแหน่ง -->
+                    <div class="flex justify-start">
+                        <div class="chat-message ai p-3 max-w-xs rounded-xl shadow-md">
+                            <p class="font-medium">สวัสดีครับ ผมคือ AI ผู้ช่วยแพทย์ ยินดีให้คำปรึกษาเบื้องต้นครับ! คุณมีคำถามเกี่ยวกับสุขภาพหรืออาการใดที่ต้องการสอบถามไหมครับ?</p>
+                            <p class="text-xs text-gray-600 mt-1">Session ID: <span id="chat-session-id" class="font-mono text-gray-700">...</span></p>
+                        </div>
+                    </div>
+                    <!-- Messages will be injected here -->
+                </div>
+
+                <!-- Chat Input -->
+                <div class="p-4 border-t border-gray-200 flex space-x-3">
+                    <button id="clear-chat-button" class="p-2 text-gray-600 hover:text-red-500 rounded-full bg-gray-100 hover:bg-red-50 transition duration-150" title="เริ่มบทสนทนาใหม่">
+                        <i data-lucide="trash-2" class="w-6 h-6"></i>
+                    </button>
+                    <input type="text" id="chat-input" placeholder="พิมพ์ข้อความของคุณ..." class="flex-1 p-3 border border-gray-300 rounded-lg focus:ring-emerald-500 focus:border-emerald-500">
+                    <button id="send-chat-button" class="px-4 py-2 rounded-lg text-white bg-emerald-600 hover:bg-emerald-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-emerald-500 flex items-center disabled:opacity-50" disabled>
+                        <i data-lucide="message-square-text" class="w-5 h-5 mr-1"></i>
+                        ส่ง
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Patient Search Content -->
+        <div id="patient-search-content" class="tab-content hidden">
+            <h1 class="text-3xl font-bold text-gray-800 mb-6 flex items-center">
+                <i data-lucide="users" class="w-8 h-8 mr-2 text-gray-600"></i>
+                Patient Search
+            </h1>
+            <div class="bg-white p-6 rounded-xl shadow-lg border border-gray-200">
+                <h2 class="text-xl font-semibold text-gray-700 mb-4">ค้นหาข้อมูลผู้ป่วย</h2>
+                <form id="patient-search-form" class="flex flex-col sm:flex-row space-y-3 sm:space-y-0 sm:space-x-3 mb-6">
+                    <input type="text" id="search-query" placeholder="ชื่อ, อาการ, หรือกรุ๊ปเลือด" required class="flex-1 p-3 border border-gray-300 rounded-md shadow-sm focus:ring-emerald-500 focus:border-emerald-500">
+                    <select id="search-type" class="p-3 border border-gray-300 rounded-md shadow-sm">
+                        <option value="name">ค้นด้วยชื่อ</option>
+                        <option value="condition">ค้นด้วยอาการ/โรค</option>
+                        <option value="blood_type">ค้นด้วยกรุ๊ปเลือด</option>
+                    </select>
+                    <button type="submit" class="py-3 px-6 rounded-md text-white bg-emerald-600 hover:bg-emerald-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-emerald-500 flex items-center justify-center whitespace-nowrap" id="search-button">
+                        <i data-lucide="search" class="w-5 h-5 mr-2"></i>
+                        ค้นหา
+                    </button>
+                    <div id="search-loading" class="hidden text-center flex items-center text-emerald-600 font-medium">
+                        <div class="loading-spinner w-6 h-6 border-4 rounded-full"></div>
+                    </div>
+                </form>
+
+                <div id="search-result-container" class="mt-6 border-t border-gray-200 pt-6">
+                    <p id="search-message" class="text-gray-500">ใส่คำค้นหาเพื่อเริ่มต้น</p>
+                    <div class="overflow-x-auto rounded-lg shadow-md mt-4">
+                        <table class="min-w-full divide-y divide-gray-200 hidden" id="patient-table">
+                            <thead class="bg-gray-100">
+                                <tr>
+                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">ID</th>
+                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">ชื่อ</th>
+                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">อายุ</th>
+                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">โรคประจำตัว</th>
+                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">กรุ๊ปเลือด</th>
+                                </tr>
+                            </thead>
+                            <tbody id="patient-table-body" class="bg-white divide-y divide-gray-200">
+                                <!-- Table rows will be injected here -->
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Notification Message Box (Modal-like) -->
+        <div id="message-box" class="fixed inset-0 bg-gray-600 bg-opacity-75 z-50 flex items-center justify-center hidden" onclick="hideMessageBox()">
+            <div class="bg-white p-6 rounded-lg shadow-xl max-w-sm w-full mx-4" onclick="event.stopPropagation()">
+                <h3 id="message-title" class="text-xl font-bold mb-3 text-gray-800"></h3>
+                <p id="message-content" class="text-gray-700 mb-4"></p>
+                <button onclick="hideMessageBox()" class="w-full py-2 rounded-md text-white bg-red-500 hover:bg-red-600">ปิด</button>
+            </div>
+        </div>
+
+    </div>
+
+    <script>
+        // กำหนด Base URL ของ Backend
+        const API_BASE_URL = 'http://localhost:8000';
+        let currentSessionId = localStorage.getItem('chatSessionId') || crypto.randomUUID();
+
+        // -----------------------------------------------------
+        // Utility Functions
+        // -----------------------------------------------------
+
+        /** แสดงข้อความแจ้งเตือนแทน alert() */
+        function showMessageBox(title, message) {
+            document.getElementById('message-title').textContent = title;
+            document.getElementById('message-content').textContent = message;
+            document.getElementById('message-box').classList.remove('hidden');
+        }
+
+        /** ซ่อนข้อความแจ้งเตือน */
+        function hideMessageBox() {
+            document.getElementById('message-box').classList.add('hidden');
+        }
+
+        /** การจัดการ Tab (Single Page Application) */
+        function setActiveTab(targetId) {
+            // ซ่อนทุกหน้าจอ
+            document.querySelectorAll('.tab-content').forEach(content => {
+                content.classList.add('hidden');
+            });
+
+            // แสดงหน้าจอที่ต้องการ
+            document.getElementById(targetId).classList.remove('hidden');
+
+            // อัพเดท Active State ของ Sidebar
+            document.querySelectorAll('.nav-item').forEach(item => {
+                item.classList.remove('active');
+            });
+            document.querySelector(`.nav-item[data-target="${targetId}"]`).classList.add('active');
+
+            // หากเป็น Dashboard ให้โหลดข้อมูล
+            if (targetId === 'dashboard-content') {
+                fetchDashboardStats();
+            }
+            // หากเป็น Chatbot ให้อัพเดท Session ID
+            if (targetId === 'chatbot-content') {
+                document.getElementById('chat-session-id').textContent = currentSessionId;
+            }
+
+            // โหลด Lucide Icons ใหม่สำหรับเนื้อหาที่เพิ่งแสดง
+            lucide.createIcons();
+        }
+
+        // -----------------------------------------------------
+        // 1. Dashboard Logic
+        // -----------------------------------------------------
+
+        /** ดึงข้อมูลสถิติผู้ป่วยจาก Backend */
+        async function fetchDashboardStats() {
+            const statusElement = document.getElementById('api-status');
+            statusElement.textContent = 'กำลังดึงข้อมูล...';
+            statusElement.classList.remove('text-red-500', 'text-green-500', 'text-yellow-600');
+            statusElement.classList.add('text-yellow-600');
+
+            try {
+                const response = await fetch(`${API_BASE_URL}/patient/stats`);
+                const data = await response.json();
+
+                if (data.success) {
+                    const stats = data.stats;
+                    document.getElementById('stat-total-patients').textContent = stats.total_patients.toLocaleString('th-TH');
+                    document.getElementById('stat-avg-age').textContent = stats.avg_age.toFixed(1);
+                    document.getElementById('stat-male-count').textContent = stats.gender.Male !== undefined ? stats.gender.Male.toLocaleString('th-TH') : 'N/A';
+                    
+                    // หา Top Condition
+                    let topCondition = 'N/A';
+                    let maxCount = 0;
+                    for (const condition in stats.conditions) {
+                        if (stats.conditions[condition] > maxCount) {
+                            maxCount = stats.conditions[condition];
+                            topCondition = condition;
+                        }
+                    }
+                    document.getElementById('stat-top-condition').textContent = topCondition;
+                    
+                    statusElement.textContent = `✅ เชื่อมต่อและโหลดข้อมูลสำเร็จ! (${stats.total_patients} ผู้ป่วย)`;
+                    statusElement.classList.remove('text-yellow-600');
+                    statusElement.classList.add('text-green-500');
+
+                } else {
+                    statusElement.textContent = `❌ ข้อผิดพลาด: ${data.error || 'ไม่สามารถโหลดสถิติ'}`;
+                    statusElement.classList.remove('text-yellow-600');
+                    statusElement.classList.add('text-red-500');
+                    showMessageBox('ข้อผิดพลาด', 'ไม่สามารถเชื่อมต่อหรือดึงข้อมูลสถิติจาก Backend ได้ กรุณาตรวจสอบ Server.');
+                }
+            } catch (error) {
+                console.error('Fetch error:', error);
+                statusElement.textContent = '❌ ไม่สามารถเชื่อมต่อกับ Backend ได้';
+                statusElement.classList.remove('text-yellow-600');
+                statusElement.classList.add('text-red-500');
+                showMessageBox('ข้อผิดพลาดการเชื่อมต่อ', 'ไม่สามารถเชื่อมต่อกับ Backend ที่ ' + API_BASE_URL + ' ได้');
+            }
+        }
+
+        // -----------------------------------------------------
+        // 2. Image Analysis Logic
+        // -----------------------------------------------------
+
+        /** จัดการการส่งฟอร์ม Image Analysis */
+        document.getElementById('image-analysis-form').addEventListener('submit', async function(event) {
+            event.preventDefault();
+            const form = event.target;
+            const resultDiv = document.getElementById('analysis-result');
+            const resultDetailsDiv = document.getElementById('result-details');
+            const loadingDiv = document.getElementById('analysis-loading');
+            const analyzeButton = document.getElementById('analyze-button');
+
+            // Reset UI
+            resultDiv.classList.add('hidden');
+            resultDetailsDiv.innerHTML = '';
+            loadingDiv.classList.remove('hidden');
+            analyzeButton.disabled = true;
+
+            try {
+                const formData = new FormData(form);
+                const fileInput = document.getElementById('image-file');
+                const imageType = document.getElementById('image-type').value;
+
+                // Preview Image
+                if (fileInput.files.length > 0) {
+                    const file = fileInput.files[0];
+                    const reader = new FileReader();
+                    reader.onload = function(e) {
+                        document.getElementById('uploaded-image-preview').src = e.target.result;
+                    };
+                    reader.readAsDataURL(file);
+                }
+
+                const response = await fetch(`${API_BASE_URL}/analyze`, {
+                    method: 'POST',
+                    body: formData,
+                });
+                const data = await response.json();
+                
+                // Stop loading
+                loadingDiv.classList.add('hidden');
+                analyzeButton.disabled = false;
+                resultDiv.classList.remove('hidden');
+
+                if (data.success) {
+                    let html = `<p class="text-sm font-medium text-gray-500">ประเภท: <span class="text-gray-800">${imageType}</span></p>`;
+
+                    if (data.type === 'xray') {
+                        // X-ray Results
+                        html += `
+                            <div class="p-4 bg-emerald-50 border border-emerald-200 rounded-lg">
+                                <p class="text-xl font-bold text-emerald-700">ผลการวินิจฉัยหลัก:</p>
+                                <p class="text-3xl font-extrabold text-emerald-900">${data.result}</p>
+                                <p class="text-sm text-emerald-600 mt-1">ความมั่นใจ: ${data.confidence}</p>
+                            </div>
+                            <h4 class="text-lg font-semibold text-gray-700 mt-4">การทำนายทั้งหมด:</h4>
+                            <ul class="list-disc list-inside space-y-1 text-gray-600">
+                        `;
+                        for (const [key, value] of Object.entries(data.all_predictions)) {
+                            html += `<li>${key}: <span class="font-mono text-sm">${value}</span></li>`;
+                        }
+                        html += `</ul>`;
+
+                    } else if (data.type === 'blood') {
+                        // Blood Smear Results
+                        html += `
+                            <div class="p-4 bg-blue-50 border border-blue-200 rounded-lg">
+                                <p class="text-xl font-bold text-blue-700">จำนวนเซลล์ทั้งหมด:</p>
+                                <p class="text-3xl font-extrabold text-blue-900">${data.total_cells.toLocaleString('th-TH')}</p>
+                            </div>
+                            <h4 class="text-lg font-semibold text-gray-700 mt-4">การนับเซลล์แต่ละประเภท:</h4>
+                            <ul class="list-disc list-inside space-y-1 text-gray-600">
+                        `;
+                        if (data.total_cells === 0 && data.message) {
+                            html += `<li><span class="text-red-500">${data.message}</span></li>`;
+                        } else {
+                             for (const [key, value] of Object.entries(data.cell_counts)) {
+                                html += `<li>${key}: <span class="font-mono text-lg font-semibold">${value.toLocaleString('th-TH')}</span></li>`;
+                            }
+                        }
+                        html += `</ul>`;
+                    }
+                    resultDetailsDiv.innerHTML = html;
+
+                } else {
+                    showMessageBox('วิเคราะห์ไม่สำเร็จ', data.error || 'เกิดข้อผิดพลาดที่ไม่ทราบสาเหตุในการวิเคราะห์');
+                    resultDetailsDiv.innerHTML = `<p class="text-red-500 font-medium">❌ ${data.error || 'ไม่สามารถวิเคราะห์ภาพได้'}</p>`;
+                }
+
+            } catch (error) {
+                console.error('Fetch error:', error);
+                loadingDiv.classList.add('hidden');
+                analyzeButton.disabled = false;
+                showMessageBox('ข้อผิดพลาดการเชื่อมต่อ', 'ไม่สามารถเชื่อมต่อกับ Backend เพื่อวิเคราะห์ภาพได้');
+            }
+        });
+
+        // -----------------------------------------------------
+        // 3. Chatbot Logic
+        // -----------------------------------------------------
+
+        /** สร้าง element ข้อความแชท */
+        function createChatMessage(text, sender) {
+            // สร้าง container สำหรับจัดตำแหน่ง (ซ้าย/ขวา)
+            const containerDiv = document.createElement('div');
+            // ตรรกะ: ผู้ใช้ (user) ชิดขวา -> justify-end, AI (ai) ชิดซ้าย -> justify-start
+            const alignment = sender === 'user' ? 'justify-end' : 'justify-start'; // <--- แก้ไขตรงนี้ให้ user เป็น justify-end
+            containerDiv.className = `flex ${alignment}`;
+            
+            // สร้างกล่องข้อความ
+            const messageDiv = document.createElement('div');
+            messageDiv.className = `chat-message ${sender} p-3 max-w-lg rounded-xl shadow-md`;
+            
+            // ปรับโค้งของกล่องแชทให้ต่างกัน
+            // ผู้ใช้ (ชิดขวา): 12px 12px 0 12px (ล่างขวาคม)
+            // AI (ชิดซ้าย): 12px 12px 12px 0 (ล่างซ้ายคม)
+            messageDiv.style.borderRadius = sender === 'user' ? '12px 12px 0 12px' : '12px 12px 12px 0';
+            messageDiv.innerHTML = `<p>${text}</p>`;
+
+            // ใส่กล่องข้อความลงใน container
+            containerDiv.appendChild(messageDiv);
+            
+            return containerDiv;
+        }
+
+        /** ส่งข้อความแชทไปยัง AI */
+        async function sendChatMessage() {
+            const inputElement = document.getElementById('chat-input');
+            const chatWindow = document.getElementById('chat-window');
+            const sendButton = document.getElementById('send-chat-button');
+            const message = inputElement.value.trim();
+
+            if (message === '') return;
+
+            // 1. แสดงข้อความผู้ใช้
+            chatWindow.appendChild(createChatMessage(message, 'user'));
+            chatWindow.scrollTop = chatWindow.scrollHeight;
+            inputElement.value = '';
+            sendButton.disabled = true; // ปิดปุ่มระหว่างรอคำตอบ
+
+            // 2. แสดง Loading
+            const loadingDiv = document.createElement('div');
+            loadingDiv.id = 'ai-loading';
+            // ต้องครอบ loading ด้วย div จัดตำแหน่งด้วย (AI ตอบ ต้องชิดซ้าย)
+            const loadingContainer = document.createElement('div');
+            loadingContainer.className = 'flex justify-start'; 
+
+            loadingDiv.className = 'flex items-center space-x-2 text-gray-500 mt-2';
+            loadingDiv.innerHTML = '<div class="loading-spinner w-4 h-4 border-2 rounded-full"></div><span>AI กำลังพิมพ์...</span>';
+            
+            loadingContainer.appendChild(loadingDiv);
+            chatWindow.appendChild(loadingContainer); // เปลี่ยนมา append container แทน
+            chatWindow.scrollTop = chatWindow.scrollHeight;
+
+            // 3. เรียก API
+            try {
+                const formData = new FormData();
+                formData.append('message', message);
+                formData.append('session_id', currentSessionId);
+
+                const response = await fetch(`${API_BASE_URL}/chat`, {
+                    method: 'POST',
+                    body: formData,
+                });
+                const data = await response.json();
+
+                // 4. ลบ Loading และแสดงคำตอบ
+                chatWindow.removeChild(loadingContainer); // ต้องลบ container
+                sendButton.disabled = false;
+
+                if (data.success) {
+                    chatWindow.appendChild(createChatMessage(data.response, 'ai'));
+                    chatWindow.scrollTop = chatWindow.scrollHeight;
+                } else {
+                    chatWindow.appendChild(createChatMessage(`❌ ข้อผิดพลาด: ${data.error || 'ไม่สามารถรับคำตอบจาก AI'}`, 'ai'));
+                    showMessageBox('ข้อผิดพลาด Chatbot', data.error || 'ไม่สามารถเชื่อมต่อกับ AI Chatbot ได้');
+                }
+
+            } catch (error) {
+                console.error('Chat fetch error:', error);
+                const loadingElement = document.getElementById('ai-loading');
+                if(loadingElement && loadingElement.parentElement) chatWindow.removeChild(loadingElement.parentElement); // ลบ container ของ loading
+                sendButton.disabled = false;
+                chatWindow.appendChild(createChatMessage('❌ การเชื่อมต่อล้มเหลว: ไม่สามารถติดต่อ Backend ได้', 'ai'));
+                showMessageBox('ข้อผิดพลาดการเชื่อมต่อ', 'ไม่สามารถเชื่อมต่อกับ Backend เพื่อสนทนาได้');
+            }
+        }
+
+        /** เคลียร์ประวัติการแชท */
+        async function clearChatHistory() {
+             const chatWindow = document.getElementById('chat-window');
+             const oldSessionId = currentSessionId;
+
+             // 1. สร้าง Session ID ใหม่
+             currentSessionId = crypto.randomUUID();
+             localStorage.setItem('chatSessionId', currentSessionId);
+
+             // 2. เคลียร์หน้าจอแชท
+             chatWindow.innerHTML = '';
+             chatWindow.appendChild(createChatMessage('Session ใหม่เริ่มต้นแล้ว! ถามคำถามสุขภาพได้เลยครับ', 'ai'));
+             document.getElementById('chat-session-id').textContent = currentSessionId;
+             showMessageBox('เริ่มสนทนาใหม่', `เริ่มบทสนทนาใหม่แล้ว Session ID เดิม (${oldSessionId.substring(0, 8)}...) ถูกลบ`);
+
+             // 3. (Optional) ส่ง API ไปบอก Backend ให้ลบประวัติเดิม
+             try {
+                await fetch(`${API_BASE_URL}/chat/clear/${oldSessionId}`);
+             } catch (error) {
+                 console.warn('Could not clear old session on server:', error);
+             }
+        }
+
+        // Event Listeners สำหรับ Chatbot
+        document.getElementById('chat-input').addEventListener('keypress', function(e) {
+            if (e.key === 'Enter') {
+                sendChatMessage();
+            }
+        });
+        document.getElementById('chat-input').addEventListener('input', function(e) {
+            document.getElementById('send-chat-button').disabled = e.target.value.trim() === '';
+        });
+        document.getElementById('send-chat-button').addEventListener('click', sendChatMessage);
+        document.getElementById('clear-chat-button').addEventListener('click', clearChatHistory);
+
+
+        // -----------------------------------------------------
+        // 4. Patient Search Logic
+        // -----------------------------------------------------
+
+        /** จัดการการส่งฟอร์ม Patient Search */
+        document.getElementById('patient-search-form').addEventListener('submit', async function(event) {
+            event.preventDefault();
+            const query = document.getElementById('search-query').value.trim();
+            const type = document.getElementById('search-type').value;
+            const messageElement = document.getElementById('search-message');
+            const tableElement = document.getElementById('patient-table');
+            const tableBody = document.getElementById('patient-table-body');
+            const searchButton = document.getElementById('search-button');
+            const loadingDiv = document.getElementById('search-loading');
+
+            if (query === '') return;
+
+            // Reset UI
+            messageElement.textContent = 'กำลังค้นหา...';
+            tableElement.classList.add('hidden');
+            tableBody.innerHTML = '';
+            searchButton.disabled = true;
+            loadingDiv.classList.remove('hidden');
+
+
+            try {
+                const formData = new FormData();
+                formData.append('search_query', query);
+                formData.append('search_type', type);
+
+                const response = await fetch(`${API_BASE_URL}/patient/search`, {
+                    method: 'POST',
+                    body: formData,
+                });
+                const data = await response.json();
+
+                // Stop loading
+                searchButton.disabled = false;
+                loadingDiv.classList.add('hidden');
+
+
+                if (data.success) {
+                    if (data.total > 0) {
+                        messageElement.textContent = `✅ พบผู้ป่วย ${data.total} รายการ`;
+                        tableElement.classList.remove('hidden');
+
+                        data.results.forEach((patient, index) => {
+                            const row = tableBody.insertRow();
+                            row.className = index % 2 === 0 ? 'bg-white' : 'bg-gray-50';
+                            
+                            // ข้อมูลที่ดึงมา (ปรับให้ตรงกับ keys ใน backend_simple.py: Name, Age, Medical Condition, Blood Type)
+                            const cells = [
+                                patient.Patient_ID || index + 1, // ใช้ ID ถ้ามี, ถ้าไม่มีใช้ index
+                                patient.Name || 'N/A',
+                                patient.Age || 'N/A',
+                                patient['Medical Condition'] || 'N/A',
+                                patient['Blood Type'] || 'N/A'
+                            ];
+
+                            cells.forEach(text => {
+                                const cell = row.insertCell();
+                                cell.className = 'px-6 py-4 whitespace-nowrap text-sm text-gray-900';
+                                cell.textContent = text;
+                            });
+                        });
+                    } else {
+                        messageElement.textContent = `⚠️ ไม่พบข้อมูลผู้ป่วยสำหรับ "${query}"`;
+                        tableElement.classList.add('hidden');
+                    }
+
+                } else {
+                    messageElement.textContent = `❌ ข้อผิดพลาดในการค้นหา: ${data.error || 'ไม่ทราบสาเหตุ'}`;
+                    showMessageBox('ข้อผิดพลาดการค้นหา', data.error || 'ไม่สามารถทำการค้นหาผู้ป่วยได้');
+                }
+
+            } catch (error) {
+                console.error('Search fetch error:', error);
+                searchButton.disabled = false;
+                loadingDiv.classList.add('hidden');
+                messageElement.textContent = '❌ ข้อผิดพลาด: ไม่สามารถเชื่อมต่อกับ Backend เพื่อค้นหาผู้ป่วยได้';
+                showMessageBox('ข้อผิดพลาดการเชื่อมต่อ', 'ไม่สามารถเชื่อมต่อกับ Backend เพื่อค้นหาผู้ป่วยได้');
+            }
+        });
+
+
+        // -----------------------------------------------------
+        // Initialization
+        // -----------------------------------------------------
+
+        document.addEventListener('DOMContentLoaded', () => {
+            // 1. กำหนด Event Listener ให้กับ Sidebar
+            document.querySelectorAll('.nav-item').forEach(item => {
+                item.addEventListener('click', function() {
+                    const targetId = this.getAttribute('data-target');
+                    setActiveTab(targetId);
+                });
+            });
+
+            // 2. กำหนดหน้าจอเริ่มต้นเป็น Dashboard และเริ่มโหลดข้อมูล
+            setActiveTab('dashboard-content');
+
+            // 3. ตั้งค่า Session ID เริ่มต้นสำหรับ Chatbot
+            document.getElementById('chat-session-id').textContent = currentSessionId;
+        });
+
+    </script>
+</body>
+</html>
